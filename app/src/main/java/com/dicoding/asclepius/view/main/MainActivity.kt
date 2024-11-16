@@ -1,8 +1,6 @@
 package com.dicoding.asclepius.view.main
 
-import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
@@ -10,7 +8,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
+import androidx.activity.viewModels
 import androidx.lifecycle.lifecycleScope
 import com.dicoding.asclepius.R
 import com.yalantis.ucrop.UCrop
@@ -24,33 +22,18 @@ import org.tensorflow.lite.task.vision.classifier.Classifications
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
-
     private var currentImageUri: Uri? = null
+    private val viewModel: MainViewModel by viewModels()
 
-    private val requestPermissionLauncher =
-        registerForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) { isGranted: Boolean ->
-            if (isGranted) {
-                showToast("Permission request granted")
-            } else {
-                showToast("Permission request denied")
-            }
-        }
-
-    private fun allPermissionsGranted() =
-        ContextCompat.checkSelfPermission(
-            this,
-            REQUIRED_PERMISSION
-        ) == PackageManager.PERMISSION_GRANTED
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        if (!allPermissionsGranted()) {
-            requestPermissionLauncher.launch(REQUIRED_PERMISSION)
+        viewModel.currentImageUri?.let {
+            currentImageUri = it
+            showImage()
         }
 
         binding.apply {
@@ -85,6 +68,7 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         if (uri != null) {
+            viewModel.currentImageUri = uri
             UCrop.of(uri, Uri.fromFile(cacheDir.resolve("${System.currentTimeMillis()}.jpg")))
                 .withMaxResultSize(2000, 2000)
                 .start(this)
@@ -125,9 +109,9 @@ class MainActivity : AppCompatActivity() {
                     showToast("Error: $error")
                 }
 
-                override fun onResults(results: List<Classifications>?) {
-                    if (results != null && results.isNotEmpty() && results[0].categories.isNotEmpty()) {
-                        val category = results[0].categories[0]
+                override fun onResults(result: List<Classifications>?) {
+                    if (!result.isNullOrEmpty() && result[0].categories.isNotEmpty()) {
+                        val category = result[0].categories[0]
                         val confidenceScore = category.score // Ambil score numerik asli
                         val resultString = "${category.label}: ${(confidenceScore * 100).toInt()}%"
 
@@ -153,9 +137,5 @@ class MainActivity : AppCompatActivity() {
 
     private fun showToast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-    }
-
-    companion object {
-        private const val REQUIRED_PERMISSION = Manifest.permission.READ_EXTERNAL_STORAGE
     }
 }
